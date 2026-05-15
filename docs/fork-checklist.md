@@ -1,89 +1,83 @@
 # Fork checklist
 
-Step-by-step guide for turning this template into your own project. Complete each phase before moving to the next.
+Step-by-step guide for turning this template into your own project.
 
 ## Phase 0 — Pre-flight decisions
 
-Decide these up front:
-
 - **Project name** (e.g. `my-api`)
 - **MongoDB database name** (e.g. `my-api-prod`)
-- **Primary domain / API base URL** (e.g. `https://api.myproject.com`)
+- **Primary domain / API base URL**
 - **SMTP provider** (Gmail app password, SendGrid, Resend, etc.)
-- **Auth token lifetime** — keep 72h or change in `src/utils/generatetoken.ts`
+- **Auth token lifetimes** — `ACCESS_TOKEN_EXPIRY` (default `15m`) and `REFRESH_TOKEN_EXPIRY` (default `7d`)
 
 ## Phase 1 — Package identity
 
-**`package.json`** — update `name`, `version`, `description`, `author`.
+`package.json` — update `name`, `version`, `description`, `author`.
 
 ## Phase 2 — Environment
 
 1. Copy `.env.example` to `.env`.
 2. Set `MONGO_URI` to your database (local or Atlas).
-3. Generate a strong `JWT_SECRET` (min 32 chars): `openssl rand -hex 32`.
-4. Set `CORS_ORIGIN` to your frontend URL.
-5. Configure `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USER`, `EMAIL_PASS`, `EMAIL_FROM` for your SMTP provider.
-6. Set `PORT` if you need something other than 5000.
+3. Generate a strong `JWT_SECRET`: `openssl rand -hex 32`.
+4. Generate a strong `REFRESH_TOKEN_SECRET`: `openssl rand -hex 32`.
+5. Set `REDIS_URL` to your Redis instance (local: `redis://localhost:6379`).
+6. Set `CORS_ORIGIN` to your frontend URL.
+7. Configure `EMAIL_*` vars for your SMTP provider.
+8. Adjust `ACCESS_TOKEN_EXPIRY` and `REFRESH_TOKEN_EXPIRY` if needed.
 
-## Phase 3 — Domain model
+## Phase 3 — Start Redis
 
-The template ships with a `User` model. You have two options:
+```bash
+docker compose up          # starts MongoDB + Redis + API together
+# or for Redis only:
+docker run -d -p 6379:6379 redis:7-alpine
+```
 
-**Option A — Extend User**: add fields to `src/models/user.model.ts` for your domain (e.g., `role`, `avatar`, `organization`). Update `docs/data-model.md`.
+## Phase 4 — Domain model
 
-**Option B — Replace**: if your primary entity is not a user:
+**Option A — Extend User**: add fields to `src/models/user.model.ts`. Update `docs/data-model.md`.
 
-1. Rename or delete `src/models/user.model.ts`.
-2. Create your own model with `/scaffold-resource <YourEntity>`.
-3. Update or delete `src/controllers/user/` and `src/routes/user.routes.ts`.
-4. Update the route mount in `index.ts`.
-5. Update `docs/api.md` and `docs/data-model.md`.
+**Option B — Replace**: create your model with `/scaffold-resource <YourEntity>`. Delete the User model, controllers, and routes.
 
-## Phase 4 — Email templates
+## Phase 5 — Email templates
 
-`src/utils/email-templates.ts` has generic English copy. Update:
+`src/utils/email-templates.ts` — update brand name, color `#268ACA`, sender name in both templates.
 
-- `verificationCodeEmail(code)` — brand name, colors, sender name.
-- `passwordResetEmail(code)` — same.
+## Phase 6 — Auth decisions
 
-Replace the inline CSS color `#268ACA` with your brand color.
+- Keep or remove the two-step email verification flow.
+- Adjust token lifetimes in `.env`.
+- Redis is already wired — no changes needed for multi-instance deployments.
 
-## Phase 5 — Auth decisions
+## Phase 7 — Security hardening
 
-Decide whether to keep the two-step email verification flow on register:
-
-- **Keep it**: it's production-ready as-is (with the in-memory Map limitation noted in `docs/auth.md`).
-- **Skip it**: change `POST /register` to create the user directly without email verification. Remove `verificationCodes` Map and the `/verify-email-for-register` + `/resend-code` routes.
-
-If you expect > 1 server instance or need restarts to not break in-flight registrations: replace the `verificationCodes` and `passwordResetCodes` Maps with Redis or a MongoDB TTL collection.
-
-## Phase 6 — Security hardening
-
-- [ ] `JWT_SECRET` is set and is at least 32 random characters (not the example value).
-- [ ] `CORS_ORIGIN` is set to your actual frontend URL (not `*`).
+- [ ] `JWT_SECRET` is at least 32 random chars (not the example value).
+- [ ] `REFRESH_TOKEN_SECRET` is at least 32 random chars (not the example value).
+- [ ] `CORS_ORIGIN` is set to your frontend URL (not `*`).
 - [ ] `.env` is in `.gitignore` (it already is — verify it hasn't been committed).
-- [ ] `EMAIL_PASS` is an app password or API key, not your account password.
-- [ ] Run `/code-review` to check for any remaining issues.
+- [ ] `EMAIL_PASS` is an app password, not your account password.
+- [ ] Run `/code-review` to check for remaining issues.
 
-## Phase 7 — Docs
+## Phase 8 — Docs
 
-Update these docs for your project:
+Update for your project:
 
 - `docs/api.md` — remove/replace User endpoints, add your domain endpoints.
-- `docs/data-model.md` — replace the User schema with your model.
+- `docs/data-model.md` — replace User schema with your model.
 - `docs/auth.md` — update if you changed the auth flow.
-- `docs/env.md` — add any new env vars you introduced.
-- `CLAUDE.md` — update "What this project is" to describe your fork.
+- `docs/env.md` — add any new env vars.
+- `CLAUDE.md` — update "What this project is".
 - Run `/codemap` to regenerate `docs/codemap.md`.
 
-## Phase 8 — Docker (optional)
+## Phase 9 — Docker
 
 Update `docker-compose.yml`:
 
-- Change the database name in the `MONGO_URI` environment variable under the `api` service.
+- Change the database name in `MONGO_URI` under the `api` service.
+- Redis is already included — no changes needed unless you use an external Redis.
 - Add any new env vars your fork needs.
 
-## Phase 9 — Git
+## Phase 10 — Git
 
 ```bash
 git init
@@ -93,7 +87,7 @@ git remote add origin <your-repo-url>
 git push -u origin main
 ```
 
-From here, Claude Code's hook infrastructure is active:
+Claude Code hook infrastructure activates automatically:
 
 - Feature branches enforced (`prepare-branch.sh` denies edits on `main`).
 - Doc-sync enforced (`enforce-doc-sync.sh` blocks stop if docs fall behind).

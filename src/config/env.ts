@@ -13,6 +13,13 @@ const envSchema = z.object({
   EMAIL_PASS: z.string().default(""),
   EMAIL_FROM: z.string().default("Template Backend <noreply@example.com>"),
   CORS_ORIGIN: z.string().default("http://localhost:3000"),
+  REDIS_URL: z.string().default("redis://localhost:6379"),
+  ACCESS_TOKEN_EXPIRY: z.string().default("15m"),
+  REFRESH_TOKEN_EXPIRY: z.string().default("7d"),
+  REFRESH_TOKEN_SECRET: z
+    .string()
+    .min(16, "REFRESH_TOKEN_SECRET must be at least 16 characters")
+    .default("change-me-in-production"),
 });
 
 const parsed = envSchema.safeParse(process.env);

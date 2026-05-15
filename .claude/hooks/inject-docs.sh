@@ -13,11 +13,47 @@ MARKER="$MARKER_DIR/docs-injected-$SESSION_ID"
 mkdir -p "$MARKER_DIR"
 touch "$MARKER"
 
+# Determine which file is being edited
+TOOL_INPUT=$(echo "$INPUT" | jq -r '.tool_input.file_path // .tool_input.path // ""')
+REL="${TOOL_INPUT#$PROJECT_DIR/}"
+
+pick_docs() {
+  local rel="$1"
+  local docs=()
+
+  case "$rel" in
+    src/routes/*|src/controllers/*)       docs=(api.md architecture.md) ;;
+    src/services/auth*|src/services/code-store*|src/services/token*)
+                                          docs=(auth.md architecture.md redis.md refresh-tokens.md) ;;
+    src/services/*)                       docs=(architecture.md) ;;
+    src/repositories/*)                   docs=(data-model.md architecture.md) ;;
+    src/models/*)                         docs=(data-model.md) ;;
+    src/middlewares/cache*|src/config/redis*)
+                                          docs=(caching.md redis.md) ;;
+    src/middlewares/auth*)                docs=(auth.md architecture.md) ;;
+    src/middlewares/*)                    docs=(architecture.md) ;;
+    src/config/env*)                      docs=(env.md) ;;
+    tests/*)                              docs=(testing.md) ;;
+    .claude/hooks/*)                      docs=(claude-hooks.md) ;;
+    .claude/skills/*)                     docs=(claude-skills.md) ;;
+    index.ts)                             docs=(architecture.md env.md) ;;
+    *)                                    docs=(architecture.md) ;;
+  esac
+
+  echo "${docs[@]}"
+}
+
+SELECTED=$(pick_docs "$REL")
+
 DOCS=""
-while IFS= read -r -d '' f; do
-  DOCS+=$'\n\n=== '"${f#$PROJECT_DIR/}"$' ===\n'
+for doc in $SELECTED; do
+  f="$PROJECT_DIR/docs/$doc"
+  [[ -f "$f" ]] || continue
+  DOCS+=$'\n\n=== '"docs/${doc}"$' ===\n'
   DOCS+=$(cat "$f")
-done < <(find "$PROJECT_DIR/docs" -type f \( -name "*.md" -o -name "*.txt" \) -print0)
+done
+
+[[ -z "$DOCS" ]] && exit 0
 
 jq -n --arg ctx "$DOCS" '{
   hookSpecificOutput: {

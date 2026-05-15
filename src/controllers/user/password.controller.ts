@@ -32,7 +32,7 @@ const forgotPassword = async (req: Request, res: Response) => {
       });
     }
 
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const code = (Math.floor(Math.random() * 900000) + 100000).toString();
     const expiresAt = Date.now() + 10 * 60 * 1000;
 
     passwordResetCodes.set(email, { code, expiresAt, userId: String(user._id) });

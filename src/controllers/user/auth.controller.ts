@@ -34,7 +34,7 @@ const registerUser = async (req: Request, res: Response) => {
       });
     }
 
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const code = (Math.floor(Math.random() * 900000) + 100000).toString();
     const expiresAt = Date.now() + 3 * 60 * 1000;
 
     verificationCodes.set(email, { code, expiresAt, userDto: { email, name, password } });
@@ -149,7 +149,7 @@ const resendCode = async (req: Request, res: Response) => {
       });
     }
 
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const code = (Math.floor(Math.random() * 900000) + 100000).toString();
     const expiresAt = Date.now() + 3 * 60 * 1000;
 
     verificationCodes.set(email, { code, expiresAt, userDto: record.userDto });

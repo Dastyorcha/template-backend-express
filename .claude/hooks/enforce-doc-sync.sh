@@ -29,6 +29,10 @@ declare -a CHECKS=(
   "^src/routes/.*\.ts$|^src/controllers/.*\.ts$|docs/api.md"
   "^src/models/.*\.ts$|docs/data-model.md"
   "^src/config/env\.ts$|^\.env\.example$|docs/env.md"
+  "^src/services/code-store.*|^src/config/redis.*|^src/middlewares/cache.*|docs/redis.md"
+  "^src/middlewares/cache.*|docs/caching.md"
+  "^src/services/token.*|docs/refresh-tokens.md"
+  "^tests/.*\.test\.ts$|docs/testing.md"
 )
 
 MISSING=""

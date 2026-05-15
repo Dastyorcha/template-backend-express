@@ -37,9 +37,11 @@
     "express": "^5.1.0",
     "express-rate-limit": "^7.5.0",
     "helmet": "^8.0.0",
+    "ioredis": "^5.10.1",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.16.3",
     "nodemailer": "^7.0.5",
+    "rate-limit-redis": "^5.0.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {
@@ -59,6 +61,7 @@
     "eslint-plugin-promise": "^7.0.0",
     "eslint-plugin-security": "^3.0.0",
     "husky": "^9.0.0",
+    "ioredis-mock": "^8.13.1",
     "lint-staged": "^15.0.0",
     "mongodb-memory-server": "^10.0.0",
     "prettier": "^3.0.0",

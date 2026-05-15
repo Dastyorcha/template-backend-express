@@ -2,44 +2,46 @@
 
 ## What this project is
 
-A fork-ready Express 5 + MongoDB + TypeScript REST API starter. It ships a complete user auth flow (register with email verification, login, password reset) and a set of user management endpoints. When forking, swap the `User` model for your domain entity and extend from there.
+A fork-ready Express 5 + MongoDB + TypeScript REST API starter with Redis, service/repository layers, TDD tooling, and full Claude Code infrastructure. Ships a complete user auth flow (register with email verification, login, JWT access + refresh tokens, password reset) and user management endpoints.
 
 ## Layer diagram
 
 ```
 index.ts
-│  boot: env validation → middleware → routes → DB connect → listen
+│  boot: env validation → middleware → routes → DB connect → Redis connect → listen
 │
 ├── src/routes/          HTTP verb + path → controller function
-├── src/controllers/     Parse request → validate → call service/model → sendResponse
-├── src/services/        (add as needed) Business logic, multi-step operations
+├── src/controllers/     Parse request → validate → call service → sendResponse (thin)
+├── src/services/        Business logic, multi-step operations, orchestration
+├── src/repositories/    All Mongoose queries for a model (no business logic)
 ├── src/models/          Mongoose schemas + TypeScript interfaces
-├── src/middlewares/     Cross-cutting request concerns (auth, etc.)
-├── src/utils/           Pure helpers (sendResponse, generateToken, sendEmail, sanitizeId, email-templates)
-├── src/config/          env.ts (zod-validated env), db.ts (mongoose connect)
+├── src/middlewares/     Cross-cutting request concerns (auth, cache)
+├── src/utils/           Pure helpers: sendResponse, generateToken, sendEmail, sanitizeId
+├── src/config/          env.ts (zod-validated), db.ts (mongoose), redis.ts (ioredis)
 └── src/types/           Ambient TypeScript declarations (express.d.ts)
 ```
 
-**Dependency direction**: each layer only imports from layers below it. `routes` → `controllers` → `services/models` → `utils/config`. Never invert.
+**Dependency direction**: each layer imports only from layers below it. Controllers → services → repositories → models. Never invert. Controllers never touch Mongoose or Redis directly.
 
 ## Request lifecycle
 
 ```
 HTTP request
-  → index.ts middleware (helmet, cors, json, rate-limit)
+  → index.ts middleware (helmet, cors, json, rate-limit via Redis)
   → src/routes/<resource>.routes.ts
-  → [authMiddleWare if private]
+  → [authMiddleWare if private] → [cacheMiddleware(ttl) if GET]
   → src/controllers/<resource>/<action>.controller.ts
-  → [src/services/ if complex logic]
-  → src/models/<resource>.model.ts (Mongoose)
-  → MongoDB
+  → src/services/<domain>.service.ts
+  → src/repositories/<resource>.repository.ts
+  → src/models/<resource>.model.ts (Mongoose) + src/config/redis.ts (ioredis)
+  → MongoDB / Redis
   → sendResponse({ res, statusCode, success, message, data? })
   → HTTP response { success, message, data?, error? }
 ```
 
 ## Response envelope
 
-Every HTTP response goes through `src/utils/response.ts:sendResponse`. The JSON shape is always:
+Every HTTP response goes through `src/utils/response.ts:sendResponse`. Shape:
 
 ```json
 { "success": true, "message": "...", "data": { ... } }
@@ -50,29 +52,38 @@ Every HTTP response goes through `src/utils/response.ts:sendResponse`. The JSON 
 
 ## Auth
 
-JWT-based. See `docs/auth.md` for the full flow. Key points:
+Access + refresh token pair. See `docs/auth.md` and `docs/refresh-tokens.md`.
 
-- `Authorization: Bearer <token>` header on private routes.
-- `src/middlewares/auth.middleware.ts` verifies the token and sets `res.locals.user.userId`.
-- `src/types/express.d.ts` types `res.locals.user` — use it, never cast to `any`.
+- `Authorization: Bearer <accessToken>` header on private routes.
+- `authMiddleWare` verifies JWT, checks `type === "access"`, sets `res.locals.user.userId`.
+- Refresh tokens are opaque strings stored in Redis with TTL; single-use rotation on each refresh.
+
+## Redis
+
+Single `ioredis` instance at `src/config/redis.ts`. Used for:
+
+1. Code store — verification/reset codes (TTL-native, replaces in-memory Maps)
+2. Rate limiting — Redis-backed store survives restarts
+3. Response cache — cache-aside on idempotent GETs
+4. Refresh token store — with revocation support
+
+See `docs/redis.md` for key namespaces and TTLs.
 
 ## Env
 
-All env vars are validated at boot by `src/config/env.ts` (zod). Feature code imports from `env`, never from `process.env` directly. See `docs/env.md` for the full list.
+Zod-validated at boot by `src/config/env.ts`. Feature code imports `env`, never `process.env`. See `docs/env.md`.
 
 ## Naming
 
-| Thing                        | Convention          | Example                               |
-| ---------------------------- | ------------------- | ------------------------------------- |
-| Files                        | kebab-case          | `user.model.ts`, `send-email.ts`      |
-| Functions / vars             | camelCase           | `generateToken`, `sendResponse`       |
-| Types / interfaces / classes | PascalCase          | `IUser`, `SendEmailOptions`           |
-| Constants                    | UPPER_SNAKE_CASE    | `MAX_PAGE_SIZE`                       |
-| Mongoose models              | PascalCase singular | `User`, `Post`                        |
-| Route URLs                   | kebab-case          | `/forgot-password`, `/get-users-page` |
+| Thing              | Convention          | Example                              |
+| ------------------ | ------------------- | ------------------------------------ |
+| Files              | kebab-case          | `user.model.ts`, `auth.service.ts`   |
+| Functions / vars   | camelCase           | `generateToken`, `userRepository`    |
+| Types / interfaces | PascalCase          | `IUser`, `CreateUserDto`             |
+| Constants          | UPPER_SNAKE_CASE    | `MAX_PAGE_SIZE`                      |
+| Mongoose models    | PascalCase singular | `User`                               |
+| Route URLs         | kebab-case          | `/forgot-password`, `/refresh-token` |
 
 ## Adding a new resource
 
-Use `/scaffold-resource <ResourceName>` — it creates the model, controller, routes, mounts in `index.ts`, and updates `docs/api.md`, `docs/data-model.md`, and `docs/codemap.md` automatically.
-
-To do it manually: follow the `User` resource as the reference pattern. One model file, one controller directory, one routes file, mount in `index.ts`.
+Use `/scaffold-resource <ResourceName>` — creates model, repository, service, controller, routes, mounts in `index.ts`, and updates docs automatically.

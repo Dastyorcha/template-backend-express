@@ -22,6 +22,9 @@ pnpm-debug.log*
 # husky
 .husky/_
 
+# Claude Code session markers (runtime state, not source)
+.claude/.session-markers/
+
 # coverage reports
 /coverage
 
